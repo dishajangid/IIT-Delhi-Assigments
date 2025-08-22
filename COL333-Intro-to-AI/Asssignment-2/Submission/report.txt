@@ -1,0 +1,35 @@
+Assignment 2: Havannah Game
+
+Disha (2022CS11118)  
+Avilasha Mandal (2022CS11631)
+
+Introduction
+This report details the strategy and implementation of our AI for the Havannah game. We utilize the minimax algorithm enhanced with alpha-beta pruning to optimize decision-making. Additionally, we incorporate specific heuristics to prioritize moves that significantly impact gameplay.
+
+ Algorithm Overview
+
+1. Minimax with Alpha-Beta Pruning:
+
+We employed the minimax algorithm to evaluate potential moves, allowing our AI to anticipate opponent responses and make optimal decisions. The integration of alpha-beta pruning reduces the number of nodes evaluated in the game tree, resulting in faster decision-making without compromising the quality of moves.
+
+2. Prioritizing Corner Moves and Edges:
+
+In Havannah, corner positions are strategically critical. Our AI prioritizes corner moves above all others, as they serve as essential points for forming bridges. Following corner moves, we focus on edge moves to prevent the formation of forks, thereby enhancing our defensive strategy.
+
+3. Weighting Block Ring Moves:
+
+Blocking an opponent's rings is crucial for success in Havannah. We assigned a significant weight (300) to moves that prevent an opponent from completing a ring. To detect potential rings, we implemented an unordered traversal method using Depth-First Search (DFS), efficiently identifying rings by exploring all possible pathways in the game state.
+
+4. Identifying Bridges:
+
+We utilized the Breadth-First Search (BFS) technique to identify bridges—critical moves that connect two corners with only one move remaining. Our AI analyzes the game state to pinpoint these connections, allowing it to prioritize actions that create or block bridges. We implemented a loop to assess bridges, applying weights of 100 in the first iteration, 150 in the second, and 200 in the third.
+
+5. Detecting Forks with BFS:
+
+To identify fork opportunities—situations where a single move can create multiple threats—we also used BFS. This method checks if adding a specific vertex connects three edges, enabling the AI to recognize potential fork scenarios that can lead to advantageous positions. Similar to bridge detection, we applied a loop for forks, with weights of 100 in the first iteration, 250 in the second, and 400 in the third.
+
+ 6. Emphasizing Moves Following Opponent Sequences
+We introduced a heuristic that assigns a higher weight to moves following a sequence of four consecutive opponent moves. In our game with a dimension of 6, this means our AI recognizes when the opponent has made four moves in a row and assigns a weight of 50 to the subsequent move. While this weight is comparatively lower than that of more critical moves, it is significant when other threats are absent. This strategy aims to counteract the opponent’s momentum and exploit any weaknesses in their established positions.
+
+ Conclusion
+Our AI for the Havannah game successfully integrates advanced algorithms and targeted heuristics to enhance its gameplay strategy. By prioritizing corner moves, blocking rings, identifying bridges and forks, and emphasizing moves following opponent sequences, we have developed a robust and adaptable AI capable of navigating the complexities of the game. Future enhancements will focus on refining evaluation functions and exploring additional strategies to further improve performance in diverse game scenarios, ensuring that our AI remains competitive in this challenging environment.
