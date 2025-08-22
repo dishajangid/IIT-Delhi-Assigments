@@ -1,0 +1,35 @@
+﻿Disha 2022CS11118 and Avilasha Mandal 2022CS11631
+
+Report:
+
+Approach and Algorithm
+We designed an agent that corrects transcription errors in ASR outputs by voice-enabled assistants, such as Alexa, Google Home, using search-based algorithms.
+Initial trial
+Initially, we used a local search algorithm where the agent iteratively improved the transcription by making phoneme-based word substitutions. Each word was replaced by all possible variations from the phoneme table, and the cost of each new transcription was calculated. The algorithm chose the variation that led to the greatest improvement. While effective for short sentences, this method struggled to fully explore the state space, often settling on locally optimal solutions without achieving a globally optimal result.
+Optimized A* Search Algorithm
+Given the limitations of local search, we shifted to an optimized A* search algorithm with enhancements to avoid local minima and improve global optimization. The modified algorithm incorporates dynamic stopping conditions, where the search halts early if no further improvements are found after two iterations. This ensures computational efficiency while guaranteeing a globally optimal or near-optimal solution. The A* search evaluates the cost of the current transcription based on the loss computed using the Whisper model, with additional mechanisms for handling local and global minima.
+
+A* Search Algorithm:
+
+Heuristic Function: The heuristic function estimates the number of errors still present in the transcription by counting the number of words that are not found in the vocabulary (vocabulary.json). This provides an estimate of how far the current state is from a fully correct solution.
+Phoneme Table: The phoneme table provides possible variations for each word. By substituting phonemes, the algorithm generates multiple variations for each incorrect word, ensuring that all plausible corrections are considered.
+Beam Search: To improve efficiency, we limited the branching factor of the search by using a beam width. Only the best n variations (based on cost) were explored further. Additionally, the search process checks for cost improvement at every iteration. If no improvement is found after two iterations, the search halts early, optimizing runtime. This ensures that the search avoids unnecessary computations and focuses on the most promising candidates while balancing local and global optimization.
+Whisper Model Integration: The Whisper model calculates the negative log-likelihood of the corrected transcription matching the original audio. This score is used as the cost function to evaluate each candidate transcription.
+Multithreading: The algorithm utilizes concurrent execution (via ThreadPoolExecutor) to compute the cost of each candidate transcription in parallel. Multithreading remains a crucial part of the design, ensuring that even when multiple iterations are needed for convergence, the time required to evaluate the cost of each candidate transcription remains feasible. Additionally, by checking for early stopping conditions, the algorithm avoids redundant computations in scenarios where no further improvements can be made.
+
+Advantages of A* Over Local Search:
+Global Optimization: Unlike local search, A* systematically explores a broader set of possibilities by maintaining an open set of potential transcriptions and expanding the most promising ones based on the cost and heuristic. The enhanced algorithm checks for changes in cost at each iteration, ensuring that the agent avoids getting stuck in local optima. If no improvement is found after two iterations, the search halts early, reducing the risk of getting trapped in local minima while maintaining global optimization.
+Efficiency: By integrating beam search, multithreading, and dynamic iteration control, we ensured that the search remains computationally feasible even for longer sentences with multiple errors. The algorithm dynamically adjusts the number of iterations based on whether cost improvements are observed, optimizing both time complexity and performance.
+Optimality: A* guarantees that the solution it finds is either optimal or very close to the optimal correction, as it considers both the immediate cost and the estimated cost to reach the goal state. The early stopping mechanism ensures that the algorithm avoids unnecessary iterations when no further improvements are possible, thus achieving optimality or near-optimality more efficiently.
+
+Cost Model
+The cost model is implemented using OpenAI's Whisper ASR model. The Whisper model provides a loss function that quantifies the difference between the audio and the transcription. By minimizing this loss, we ensure that the corrected transcription closely matches the audio input.
+The cost model works by:
+Encoding the Audio: The audio is pre-processed by the Whisper model, converting it into feature vectors.
+Evaluating the Text: The Whisper model then evaluates how well a given transcription matches the original audio, returning a loss value.
+Optimization: The A* algorithm uses this loss value to guide the search, prioritizing corrections that reduce the loss the most.
+
+Results
+The enhanced A* search algorithm consistently outperformed the local search in terms of both accuracy and speed. By leveraging the phoneme table, vocabulary, and Whisper model, the agent was able to correct errors that the local search failed to address. The dynamic iteration mechanism, which stops the search early if no improvements are found after two iterations, further improved efficiency. The use of beam search allowed us to efficiently explore a large number of variations without overwhelming the system while maintaining focus on the most promising transcriptions.
+Conclusion
+In this assignment, we developed a correction agent that improves ASR transcriptions using an enhanced A* search algorithm. While local search methods provided a simple and intuitive approach, they lacked the ability to handle more complex and longer sentences effectively. The enhanced A* search algorithm, combined with the Whisper model, enabled the agent to find globally optimal corrections efficiently, even for more challenging transcriptions. The dynamic iteration mechanism ensured that the algorithm avoids unnecessary iterations, making it both effective and computationally efficient.
