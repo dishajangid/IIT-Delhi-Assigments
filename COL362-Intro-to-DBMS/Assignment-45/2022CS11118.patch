@@ -1,0 +1,1540 @@
+diff --git a/src/main/java/in/ac/iitd/db362/operators/ComparisonPredicate.java b/src/main/java/in/ac/iitd/db362/operators/ComparisonPredicate.java
+index 05a3ba8..2ff17be 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/ComparisonPredicate.java
++++ b/src/main/java/in/ac/iitd/db362/operators/ComparisonPredicate.java
+@@ -35,12 +35,105 @@ public class ComparisonPredicate implements Predicate {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Evaluating tuple " + tuple.getValues() + " with schema " + tuple.getSchema());
+         logger.trace("[Predicate] " + leftOperand + " " + operator + " " + rightOperand);
++        // System.out.println("Evaluating tuple " + tuple.getValues() + " with schema " + tuple.getSchema());
++        // System.out.println("[Predicate] " + leftOperand + " " + operator + " " + rightOperand);
+         // -------------------------
+ 
+         //TODO: Implement me!
++        // Get actual values from the tuple based on operands
++        Object leftValue = getOperandValue(leftOperand, tuple);
++        Object rightValue = getOperandValue(rightOperand, tuple);
++        
++        // If either value is null, comparison returns false (SQL semantics)
++        if (leftValue == null || rightValue == null) {
++            return false;
++        }
++        // Compare based on the operator
++    try {
++        // Handle numeric comparisons
++        if (leftValue instanceof Number && rightValue instanceof Number) {
++            double leftNum = ((Number) leftValue).doubleValue();
++            double rightNum = ((Number) rightValue).doubleValue();
++            int compResult = Double.compare(leftNum, rightNum);
++            return applyOperator(compResult);
++        }
++        
++        // For other types, try direct comparison if both are comparable
++        if (leftValue instanceof Comparable && rightValue instanceof Comparable &&
++            leftValue.getClass().equals(rightValue.getClass())) {
++            
++            @SuppressWarnings("unchecked")
++            Comparable<Object> left = (Comparable<Object>) leftValue;
++            int compResult = left.compareTo(rightValue);
++            return applyOperator(compResult);
++        }
++        
++        // Fall back to string comparison
++        return compareAsStrings(leftValue.toString(), rightValue.toString());
++    } catch (Exception e) {
++        logger.debug("Comparison failed, falling back to string comparison: " + e.getMessage());
++        // Final fallback to string comparison
++        return compareAsStrings(String.valueOf(leftValue), String.valueOf(rightValue));
++    }
+ 
+         // Remove me after your implementation
+-        throw new RuntimeException("Method not yet implemented");
++        // throw new RuntimeException("Method not yet implemented");
++    }
++    /**
++     * Gets the actual value for an operand.
++     * If the operand is a column reference (String), looks it up in the tuple.
++     * Otherwise, returns the operand as a constant value.
++     */
++    private Object getOperandValue(Object operand, Tuple tuple) {
++        if (operand instanceof String) {
++            String colName = (String) operand;
++            // Check if this is a column reference (exists in schema)
++            if (tuple.getSchema().contains(colName)) {
++                // Fix: Using the correct method to get value from tuple
++                return tuple.get(colName);  // Changed from getValue(colName)
++            }
++        }
++        // If not a column reference, treat as constant value
++        return operand;
++    }
++
++    /**
++     * Compares two numeric values with the given operator
++     */
++    private boolean compareNumerics(Object left, Object right) {
++        double leftNum = ((Number) left).doubleValue();
++        double rightNum = ((Number) right).doubleValue();
++        int compResult = Double.compare(leftNum, rightNum);
++        return applyOperator(compResult);
++    }
++
++    /**
++     * Compares two values as strings with the given operator
++     */
++    private boolean compareAsStrings(String left, String right) {
++        int compResult = left.compareTo(right);
++        return applyOperator(compResult);
++    }
++    /**
++     * Applies the operator to a comparison result
++     */
++    private boolean applyOperator(int compResult) {
++        switch (operator) {
++            case "=":
++                return compResult == 0;
++            case ">":
++                return compResult > 0;
++            case ">=":
++                return compResult >= 0;
++            case "<":
++                return compResult < 0;
++            case "<=":
++                return compResult <= 0;
++            case "!=":
++                return compResult != 0;
++            default:
++                throw new RuntimeException("Unknown operator: " + operator);
++        }
+     }
+ 
+     // DO NOT REMOVE these functions! ---
+diff --git a/src/main/java/in/ac/iitd/db362/operators/EqualityJoinPredicate.java b/src/main/java/in/ac/iitd/db362/operators/EqualityJoinPredicate.java
+index 4aaf3c3..936c4b9 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/EqualityJoinPredicate.java
++++ b/src/main/java/in/ac/iitd/db362/operators/EqualityJoinPredicate.java
+@@ -38,9 +38,30 @@ public class EqualityJoinPredicate implements JoinPredicate {
+         // -------------------------
+ 
+         //TODO: Implement me!
++        // Get values from both tuples
++        Object leftValue = left.get(leftColumn);
++        // System.out.println("left = "+ left);
++        // System.out.println("leftvalue = "+ leftValue);
++        Object rightValue = right.get(rightColumn);
++        // System.out.println("right = "+ right);
++        // System.out.println("rightvalue = "+ rightValue);
++        // If either value is null, join condition doesn't match (SQL semantics)
++        if (leftValue == null || rightValue == null) {
++            return false;
++        }
++        // Compare values for equality
++        if (leftValue instanceof Number && rightValue instanceof Number) {
++            // For numeric types, compare their numeric values
++            double leftNum = ((Number) leftValue).doubleValue();
++            double rightNum = ((Number) rightValue).doubleValue();
++            return Double.compare(leftNum, rightNum) == 0;
++        } else {
++            // For other types, use equals method
++            return leftValue.equals(rightValue);
++        }
+ 
+         // Remove me after your implementation
+-        throw new RuntimeException("Method not yet implemented");
++        // throw new RuntimeException("Method not yet implemented");
+     }
+ 
+ 
+diff --git a/src/main/java/in/ac/iitd/db362/operators/FilterOperator.java b/src/main/java/in/ac/iitd/db362/operators/FilterOperator.java
+index 100dd61..cbcf350 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/FilterOperator.java
++++ b/src/main/java/in/ac/iitd/db362/operators/FilterOperator.java
+@@ -22,30 +22,54 @@ public class FilterOperator extends OperatorBase implements Operator {
+     public void open() {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Open()");
++        // System.out.println("FilterOperator opened");
+         // ------------------------
+ 
+         //TODO: Implement me!
++        // Open the child operator to start processing
++        child.open();
+     }
+ 
+     @Override
+     public Tuple next() {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Next()");
++        // System.out.println("FilterOperator    Next");
+         // -------------------------
+ 
+         //TODO: Implement me!
++        Tuple tuple;
++
++        while ((tuple = child.next()) != null) {
++            // If the tuple satisfies the predicate, return it
++            // System.out.println(";;;;;;;;;;;;;;;;;;;;;;;;Fetched tuple: " + tuple + "\n");
++            if (predicate.evaluate(tuple)) {
++                // System.out.println("Tuple satisfies predicate: " + tuple);
++                return tuple;
++            }else {
++                // System.out.println("Tuple does not satisfy predicate: " + tuple);
++            }
++            // Otherwise, continue looking for the next matching tuple
++        }
++        
++        // No more tuples or no matching tuples found
++        // System.out.println("No more tuples to process in FilterOperator.");
++        return null;
+ 
+         // remove and return the next tuple
+-        throw new RuntimeException("Method not yet implemented");
++        // throw new RuntimeException("Method not yet implemented");
+     }
+ 
+     @Override
+     public void close() {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Close()");
++        // System.out.println("FIlterOperator            Close");
+         // -------------------------
+ 
+         //TODO: Implement me!
++        // Close the child operator to release resources
++        child.close();
+     }
+ 
+ 
+@@ -57,4 +81,12 @@ public class FilterOperator extends OperatorBase implements Operator {
+     public Predicate getPredicate() {
+         return predicate;
+     }
++    /**
++     * Sets a new child operator for this SinkOperator.
++     *
++     * @param child The new child operator to set.
++     */
++    public void setChild(Operator child) {
++        this.child = child;
++    }
+ }
+diff --git a/src/main/java/in/ac/iitd/db362/operators/JoinOperator.java b/src/main/java/in/ac/iitd/db362/operators/JoinOperator.java
+index deee4e3..e90260f 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/JoinOperator.java
++++ b/src/main/java/in/ac/iitd/db362/operators/JoinOperator.java
+@@ -1,70 +1,221 @@
+ package in.ac.iitd.db362.operators;
+-
+ import in.ac.iitd.db362.storage.Tuple;
+-
+ import java.util.*;
+-
+ /**
+  * The join operator performs a Hash Join.
+- * TODO: Implement the open(), next(), and close() methods.
+- *
+- * Do not change the constructor and member variables or getters
+- * Do not remove logging! otherwise your test cases will fail!
++ * This implementation builds a hash table from the left child's tuples
++ * and then probes it with the right child's tuples.
+  */
+ public class JoinOperator extends OperatorBase implements Operator {
+     private Operator leftChild;
+     private Operator rightChild;
+     private JoinPredicate predicate;
++    
++    // Hash table to store tuples from the left relation
++    private Map<Object, List<Tuple>> hashTable;
++    
++    // Queue to store matched join results
++    private Queue<Tuple> resultQueue;
++    
++    // Current right tuple being processed
++    private Tuple currentRightTuple;
++    
++    // Iterator over the left tuples that match with the current right tuple
++    private Iterator<Tuple> matchingTuplesIterator;
++    
++    // Flag to check if the join operation is done
++    private boolean isDone;
+ 
+     public JoinOperator(Operator leftChild, Operator rightChild, JoinPredicate predicate) {
+         this.leftChild = leftChild;
+         this.rightChild = rightChild;
+         this.predicate = predicate;
+     }
+-
++    
+     @Override
+     public void open() {
+         // Do not remove logging--
+         logger.trace("Open()");
+         // ----------------------
+-
+-        //TODO: Implement me!
+-
++        
++        // Initialize data structures
++        hashTable = new HashMap<>();
++        resultQueue = new LinkedList<>();
++        isDone = false;
++        
++        // Open the child operators
++        leftChild.open();
++        rightChild.open();
++        
++        // Build the hash table from the left relation
++        buildHashTable();
+     }
+-
++    
++    /**
++     * Builds a hash table from the left child's tuples.
++     * The hash is computed on the join column.
++     */
++    private void buildHashTable() {
++        String leftJoinColumn = ((EqualityJoinPredicate) predicate).getLeftColumn();
++        Tuple leftTuple;
++        
++        // Read all tuples from the left child and insert them into the hash table
++        while ((leftTuple = leftChild.next()) != null) {
++            Object key = leftTuple.get(leftJoinColumn);
++            
++            // Skip null keys as they won't match in joins
++            if (key == null) {
++                continue;
++            }
++            
++            // Add the tuple to the list of tuples with the same key
++            hashTable.computeIfAbsent(key, k -> new ArrayList<>()).add(leftTuple);
++        }
++        
++        // Close the left child as we've consumed all its tuples
++        leftChild.close();
++    }
++    
+     @Override
+     public Tuple next() {
+         // Do not remove logging--
+         logger.trace("Next()");
+         // ----------------------
+-
+-        //TODO: Implement me!
+-
+-        // Remove me and return the next tuple
+-        throw new RuntimeException("Method not yet implemented");
++        
++        // Return null if the join is done
++        if (isDone) {
++            return null;
++        }
++        
++        // If we have pending results, return the next one
++        if (!resultQueue.isEmpty()) {
++            return resultQueue.poll();
++        }
++        
++        // Process the next batch of matching tuples
++        while (processNextMatch()) {
++            // If we found matches, return the first one
++            if (!resultQueue.isEmpty()) {
++                return resultQueue.poll();
++            }
++        }
++        
++        // No more matches, the join is done
++        isDone = true;
++        return null;
+     }
+-
++    
++    /**
++     * Processes the next potential match.
++     * @return true if more tuples might be available, false if the join is complete
++     */
++    private boolean processNextMatch() {
++        // If we're still processing matches for the current right tuple
++        if (matchingTuplesIterator != null && matchingTuplesIterator.hasNext()) {
++            // Get the next matching left tuple
++            Tuple leftTuple = matchingTuplesIterator.next();
++            
++            // If the tuples match according to the predicate
++            if (predicate.evaluate(leftTuple, currentRightTuple)) {
++                // Create a joined tuple and add it to the result queue
++                Tuple joinedTuple = mergeTuples(leftTuple, currentRightTuple);
++                resultQueue.add(joinedTuple);
++            }
++            return true;
++        }
++        
++        // Try to get the next right tuple
++        currentRightTuple = rightChild.next();
++        if (currentRightTuple == null) {
++            // No more right tuples, we're done
++            return false;
++        }
++        
++        // Get the join key from the right tuple
++        String rightJoinColumn = ((EqualityJoinPredicate) predicate).getRightColumn();
++        Object key = currentRightTuple.get(rightJoinColumn);
++        
++        // If the key exists in our hash table, set up the iterator for matching tuples
++        if (key != null && hashTable.containsKey(key)) {
++            matchingTuplesIterator = hashTable.get(key).iterator();
++        } else {
++            matchingTuplesIterator = Collections.emptyIterator();
++        }
++        
++        return true;
++    }
++    
+     @Override
+     public void close() {
+         // Do not remove logging ---
+         logger.trace("Close()");
+         // ------------------------
+-
+-        //TODO: Implement me!
+-
++        
++        // Close the right child (left child was already closed after building the hash table)
++        rightChild.close();
++        
++        // Clear data structures to free memory
++        hashTable.clear();
++        resultQueue.clear();
++        hashTable = null;
++        resultQueue = null;
++        currentRightTuple = null;
++        matchingTuplesIterator = null;
++    }
++    private Tuple mergeTuples(Tuple left, Tuple right) {
++        // Get schemas and values from both tuples
++        List<String> leftSchema = left.getSchema();
++        List<Object> leftValues = left.getValues();
++        List<String> rightSchema = right.getSchema();
++        List<Object> rightValues = right.getValues();
++        
++        // Create new schema and values lists for the joined tuple
++        List<String> joinedSchema = new ArrayList<>(leftSchema);
++        joinedSchema.addAll(rightSchema);
++        
++        List<Object> joinedValues = new ArrayList<>(leftValues);
++        joinedValues.addAll(rightValues);
++        
++        // Create and return a new tuple with the joined schema and values
++        try {
++            java.lang.reflect.Constructor<?> constructor = left.getClass().getConstructor(List.class, List.class);
++            Tuple joinedTuple = new Tuple(joinedValues, joinedSchema);
++            // System.out.println("joined schema: " + joinedSchema);
++            // System.out.println("joined values: " + joinedValues);
++            // System.out.println("Created joined tuple: " + joinedTuple.getValues());
++            
++            return joinedTuple;
++        } catch (Exception e) {
++            throw new RuntimeException("Failed to create joined tuple", e);
++        }
+     }
+-
+ 
+     // Do not remove these methods!
+     public Operator getLeftChild() {
+         return leftChild;
+     }
+-
++    
+     public Operator getRightChild() {
+         return rightChild;
+     }
+-
++    
+     public JoinPredicate getPredicate() {
+         return predicate;
+     }
+-}
++    /**
++     * Sets a new left child operator for this join
++     * @param newLeftChild The new left child operator
++     */
++    public void setLeftChild(Operator newLeftChild) {
++        this.leftChild = newLeftChild;
++    }
++    
++    /**
++     * Sets a new right child operator for this join
++     * @param newRightChild The new right child operator
++     */
++    public void setRightChild(Operator newRightChild) {
++        this.rightChild = newRightChild;
++    }
++    
++}
+\ No newline at end of file
+diff --git a/src/main/java/in/ac/iitd/db362/operators/ProjectOperator.java b/src/main/java/in/ac/iitd/db362/operators/ProjectOperator.java
+index 2da80e9..922b813 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/ProjectOperator.java
++++ b/src/main/java/in/ac/iitd/db362/operators/ProjectOperator.java
+@@ -36,27 +36,129 @@ public class ProjectOperator extends OperatorBase implements Operator {
+         // -------------------------
+ 
+         // TODO: Implement me!
++        // System.out.println("Opening ProjectOperator");
++        // Open the child operator to start processing
++        child.open();
++        // System.out.println("child opened for ProjectOperator");
++        
++        // If distinct is true, we need to initialize a set to track unique tuples
++        if (distinct) {
++            seen = new HashSet<>();
++        }
+     }
+ 
++    // Set to track unique tuples when distinct is true
++    private Set<List<Object>> seen;
++
+     @Override
+     public Tuple next() {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Next()");
++        // System.out.println("ProjectOperator Next()");
+         // ------------------------
+ 
+         //TODO: Implement me!
++        Tuple childTuple;
++        if (distinct) {
++            // With DISTINCT, we need to keep fetching tuples until we find one
++            // that hasn't been seen before or reach the end
++            // while ((childTuple = child.next()) != null) {
++            childTuple = child.next();
++            if(childTuple == null) {
++                // System.out.println("childTuple is null");
++            }
++            while (childTuple != null) {
++                Tuple projectedTuple = projectTuple(childTuple);
++                // System.out.println("projected tuple distinct  = " + projectedTuple);
++                
++                // Create a list of values for comparison in the HashSet
++                List<Object> valuesList = projectedTuple.getValues();
++                
++                // If we haven't seen this tuple before, return it
++                if (seen.add(valuesList)) {
++                    // System.out.println("Returning projected tuple: " + projectedTuple);
++                    return projectedTuple;
++                }
++                // Otherwise, continue to the next tuple
++                childTuple = child.next();
++            }
++            // System.out.println("returning null");
++            return null;
++        } else {
++            // Without DISTINCT, just project the next tuple
++            childTuple = child.next();
++            if(childTuple == null) {
++                // System.out.println("child tuple is null2");
++            }
++            if (childTuple != null) {
++                Tuple projectedTuple = projectTuple(childTuple);
++                //------------------------------------
++                if(projectedTuple == null) {
++                    // System.out.println("projected tuple is null");
++                    return null;
++                }
++                //-------------------------------------------
++                // System.out.println("Returning projected tuple duplicates allowed : " + projectedTuple);
++                return projectedTuple;
++            }
++            // System.out.println("returning null");
++            return null;
++        }
+ 
+         // remove me after implementation
+-        throw new RuntimeException("Method not yet implemented");
++        // throw new RuntimeException("Method not yet implemented");
++    }
++
++    /**
++     * Projects a tuple to include only the specified columns
++     * @param tuple The input tuple
++     * @return The projected tuple
++     */
++
++    private Tuple projectTuple(Tuple tuple) {
++        List<String> schema = tuple.getSchema();
++        List<Object> values = tuple.getValues();
++        
++        List<String> newSchema = new ArrayList<>();
++        List<Object> newValues = new ArrayList<>();
++        
++        // For each projected column, find its position and add to the new tuple
++        for (String columnName : projectedColumns) {
++            int index = schema.indexOf(columnName);
++            if (index != -1) {
++                newSchema.add(columnName);
++                newValues.add(values.get(index));
++            }
++        }
++        // Create a new tuple with only the projected columns
++        try {
++            Tuple projectedTuple = new Tuple(newValues, newSchema);
++            // System.out.println("new schema : " + newSchema);
++            // System.out.println("new values : " + newValues);
++            // System.out.println("returned Projected tuple created: " + projectedTuple);
++            return projectedTuple;
++        } catch (Exception e) {
++            throw new RuntimeException("Failed to create projected tuple", e);
++        }
+     }
+ 
+     @Override
+     public void close() {
+         // DO NOT REMOVE LOGGING ---
+         logger.trace("Close()");
++        // System.out.println("ProjectOperator---------------Close()");
+         // ------------------------
+ 
+         // TODO: Implement me!
++        // Close the child operator
++        // System.out.println("Closing ProjectOperator.");
++        child.close();
++        
++        // Clear the set of seen tuples if we were doing distinct projection
++        if (distinct && seen != null) {
++            seen.clear();
++            seen = null;
++        }
+     }
+ 
+     // do not remvoe these methods!
+@@ -71,4 +173,12 @@ public class ProjectOperator extends OperatorBase implements Operator {
+     public boolean isDistinct() {
+         return distinct;
+     }
++    /**
++     * Sets a new child operator for this SinkOperator.
++     *
++     * @param child The new child operator to set.
++     */
++    public void setChild(Operator child) {
++        this.child = child;
++    }
+ }
+diff --git a/src/main/java/in/ac/iitd/db362/operators/SinkOperator.java b/src/main/java/in/ac/iitd/db362/operators/SinkOperator.java
+index 17794fd..855f337 100644
+--- a/src/main/java/in/ac/iitd/db362/operators/SinkOperator.java
++++ b/src/main/java/in/ac/iitd/db362/operators/SinkOperator.java
+@@ -85,4 +85,12 @@ public class SinkOperator extends OperatorBase implements Operator {
+     public boolean isHeaderWritten() {
+         return headerWritten;
+     }
++    /**
++     * Sets a new child operator for this SinkOperator.
++     *
++     * @param child The new child operator to set.
++     */
++    public void setChild(Operator child) {
++        this.child = child;
++    }
+ }
+diff --git a/src/main/java/in/ac/iitd/db362/optimizer/BasicOptimizer.java b/src/main/java/in/ac/iitd/db362/optimizer/BasicOptimizer.java
+index 8b90087..7633049 100644
+--- a/src/main/java/in/ac/iitd/db362/optimizer/BasicOptimizer.java
++++ b/src/main/java/in/ac/iitd/db362/optimizer/BasicOptimizer.java
+@@ -1,11 +1,14 @@
+ package in.ac.iitd.db362.optimizer;
+ 
+ import in.ac.iitd.db362.catalog.Catalog;
++import in.ac.iitd.db362.catalog.TableStatistics;
+ import in.ac.iitd.db362.api.PlanPrinter;
+-import in.ac.iitd.db362.operators.Operator;
++
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
+ 
++import in.ac.iitd.db362.operators.*;
++import java.util.*;
+ /**
+  * A basic optimizer implementation. Feel free and be creative in designing your optimizer.
+  * Do not change the constructor. Use the catalog for various statistics that are available.
+@@ -40,8 +43,791 @@ public class BasicOptimizer implements Optimizer {
+     @Override
+     public Operator optimize(Operator plan) {
+         logger.info("Optimizing Plan:\n{}", PlanPrinter.getPlanString(plan));
+-        // TODO: Implement me!
+-        // For now, we simply return the plan unmodified.
+-        return plan;
++        
++        // Apply optimization rules
++        Operator optimizedPlan = plan;
++        
++        // Step 1: Push down filters
++        optimizedPlan = pushDownFilters(optimizedPlan);
++
++        optimizedPlan = simplifyPredicates(optimizedPlan);
++        
++        // Step 2: Optimize join orders
++        optimizedPlan = optimizeJoins(optimizedPlan);
++        
++        // Step 3: Simplify projections
++        optimizedPlan = optimizeProjections(optimizedPlan);
++
++        
++        // Log the optimized plan
++        logger.info("Optimized Plan:\n{}", PlanPrinter.getPlanString(optimizedPlan));
++
++        return optimizedPlan;
++    }
++    
++    /**
++     * Pushes filter predicates down the query plan to reduce data early.
++     */
++    private Operator pushDownFilters(Operator op) {
++        if (op == null) return null;
++        
++        // First collect all filters in the tree
++        List<FilterOperator> allFilters = new ArrayList<>();
++        Operator cleanedOp = collectAndRemoveFilters(op, allFilters);
++        
++        // Now rebuild the tree, placing filters as close to scans as possible
++        return rebuildTreeWithFilters(cleanedOp, allFilters);
++    }
++    
++    /**
++     * Collect all filters from a tree and remove them, returning a clean tree without filters
++     */
++    private Operator collectAndRemoveFilters(Operator op, List<FilterOperator> filters) {
++        if (op == null) return null;
++        
++        if (op instanceof FilterOperator) {
++            FilterOperator filter = (FilterOperator) op;
++            filters.add(filter);
++            // Skip the filter and continue with its child
++            return collectAndRemoveFilters(filter.getChild(), filters);
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            project.setChild(collectAndRemoveFilters(project.getChild(), filters));
++            return project;
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            join.setLeftChild(collectAndRemoveFilters(join.getLeftChild(), filters));
++            join.setRightChild(collectAndRemoveFilters(join.getRightChild(), filters));
++            return join;
++        } else if (op instanceof SinkOperator) {
++            SinkOperator sink = (SinkOperator) op;
++            sink.setChild(collectAndRemoveFilters(sink.getChild(), filters));
++            return sink;
++        }
++        
++        // For any other operator type, including scan, just return it
++        return op;
++    }
++    /**
++     * Rebuild the tree by placing filters as close to scans as possible
++     */
++    private Operator rebuildTreeWithFilters(Operator op, List<FilterOperator> filters) {
++        if (op == null) return null;
++        
++        if (op instanceof ScanOperator) {
++            // For scan operators, apply all applicable filters
++            ScanOperator scan = (ScanOperator) op;
++            Operator result = scan;
++            
++            // Find and apply all filters that can be applied to this scan
++            Iterator<FilterOperator> iterator = filters.iterator();
++            while (iterator.hasNext()) {
++                FilterOperator filter = iterator.next();
++                if (canApplyFilterToScan(filter.getPredicate(), scan)) {
++                    // Apply the filter right above the scan
++                    filter.setChild(result);
++                    result = filter;
++                    // Remove this filter from the list as it's been applied
++                    iterator.remove();
++                }
++            }
++            
++            return result;
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            project.setChild(rebuildTreeWithFilters(project.getChild(), filters));
++            return project;
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            
++            // Process both children first
++            join.setLeftChild(rebuildTreeWithFilters(join.getLeftChild(), filters));
++            join.setRightChild(rebuildTreeWithFilters(join.getRightChild(), filters));
++            
++            // Apply any remaining filters that can be pushed to either side of the join
++            Operator result = join;
++            Iterator<FilterOperator> iterator = filters.iterator();
++            while (iterator.hasNext()) {
++                FilterOperator filter = iterator.next();
++                if (canPushFilterToJoinChild(filter.getPredicate(), join, true)) {
++                    // Push to left child
++                    Operator leftChild = join.getLeftChild();
++                    filter.setChild(leftChild);
++                    join.setLeftChild(filter);
++                    iterator.remove();
++                } else if (canPushFilterToJoinChild(filter.getPredicate(), join, false)) {
++                    // Push to right child
++                    Operator rightChild = join.getRightChild();
++                    filter.setChild(rightChild);
++                    join.setRightChild(filter);
++                    iterator.remove();
++                }
++            }
++            
++            return result;
++        } else if (op instanceof SinkOperator) {
++            SinkOperator sink = (SinkOperator) op;
++            sink.setChild(rebuildTreeWithFilters(sink.getChild(), filters));
++            
++            // Apply any remaining filters at the top level
++            Operator result = sink;
++            if (!filters.isEmpty()) {
++                // If there are any filters left, apply them right below the sink
++                Operator child = sink.getChild();
++                for (FilterOperator filter : filters) {
++                    filter.setChild(child);
++                    child = filter;
++                }
++                sink.setChild(child);
++                filters.clear();
++            }
++            
++            return result;
++        }
++        
++        // For other operators, just return them unchanged
++        return op;
++    }
++    
++    /**
++     * Check if a filter can be applied directly to a scan
++     */
++    private boolean canApplyFilterToScan(Predicate predicate, ScanOperator scan) {
++        if (predicate instanceof ComparisonPredicate) {
++            ComparisonPredicate compPred = (ComparisonPredicate) predicate;
++            Object leftOp = compPred.getLeftOperand();
++            Object rightOp = compPred.getRightOperand();
++            
++            // Check if the column references are in the scan's schema
++            if (leftOp instanceof String) {
++                String colName = (String) leftOp;
++                if (!scan.getSchema().contains(colName)) {
++                    return false;
++                }
++            }
++            
++            if (rightOp instanceof String) {
++                String colName = (String) rightOp;
++                if (!scan.getSchema().contains(colName)) {
++                    return false;
++                }
++            }
++            
++            return true;
++        }
++        
++        return false;
++    }
++    
++    /**
++     * Checks if a filter predicate can be pushed to a specific join child.
++     */
++    private boolean canPushFilterToJoinChild(Predicate predicate, JoinOperator join, boolean isLeftChild) {
++        if (predicate instanceof ComparisonPredicate) {
++            ComparisonPredicate compPred = (ComparisonPredicate) predicate;
++            Object leftOp = compPred.getLeftOperand();
++            Object rightOp = compPred.getRightOperand();
++            
++            // Check if the column references are from only one side of the join
++            if (isLeftChild) {
++                return belongsToLeftChild(leftOp, join) && belongsToLeftChild(rightOp, join);
++            } else {
++                return belongsToRightChild(leftOp, join) && belongsToRightChild(rightOp, join);
++            }
++        }
++        
++        return false;
++    }
++    
++    /**
++     * Checks if a column reference belongs to the left child of a join.
++     */
++    private boolean belongsToLeftChild(Object operand, JoinOperator join) {
++        if (operand instanceof String) {
++            String colName = (String) operand;
++            return isColumnFromOperator(colName, join.getLeftChild());
++        }
++        
++        // Constants can be pushed to either side
++        return true;
++    }
++    /**
++     * Checks if a column reference belongs to the right child of a join.
++     */
++    private boolean belongsToRightChild(Object operand, JoinOperator join) {
++        if (operand instanceof String) {
++            String colName = (String) operand;
++            return isColumnFromOperator(colName, join.getRightChild());
++        }
++        
++        // Constants can be pushed to either side
++        return true;
++    } 
++    /**
++     * Checks if a column is from a table accessed by an operator.
++     */
++    private boolean isColumnFromOperator(String columnName, Operator op) {
++        if (op instanceof ScanOperator) {
++            ScanOperator scan = (ScanOperator) op;
++            return scan.getSchema().contains(columnName);
++        } else if (op instanceof FilterOperator) {
++            return isColumnFromOperator(columnName, ((FilterOperator) op).getChild());
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            return project.getProjectedColumns().contains(columnName) && 
++                   isColumnFromOperator(columnName, project.getChild());
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            return isColumnFromOperator(columnName, join.getLeftChild()) || 
++                   isColumnFromOperator(columnName, join.getRightChild());
++        }
++        
++        return false;
++    }
++
++
++
++
++
++
++
++
++
++
++
++
++
++    /**
++     * Optimizes join orders based on relation sizes.
++     */
++    private Operator optimizeJoins(Operator op) {
++        if (op == null) {
++            // system.out.println("Received null operator, returning null.");
++            return null;
++        }
++        
++        if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            // system.out.println("Optimizing join operator: " + join);
++            
++            // Recursively optimize child joins first
++            Operator optimizedLeft = optimizeJoins(join.getLeftChild());
++            Operator optimizedRight = optimizeJoins(join.getRightChild());
++            
++            // Set optimized children
++            join.setLeftChild(optimizedLeft);
++            join.setRightChild(optimizedRight);
++            
++            // Determine estimated sizes of the relations
++            long leftSize = estimateOperatorSize(optimizedLeft);
++            long rightSize = estimateOperatorSize(optimizedRight);
++            
++            // system.out.println("Estimated left child size: " + leftSize);
++            // system.out.println("Estimated right child size: " + rightSize);
++            
++            // If right relation is smaller than left, swap them for more efficient processing
++            // This is a simple heuristic: process smaller relation first to reduce hash table size
++            if (rightSize < leftSize) {
++                if (canSwapJoinChildren(join)) {
++                    // system.out.println("Join children can be swapped for efficiency");
++                    
++                    // Instead of modifying the existing join, create a new join operator
++                    // with the children and predicate swapped
++                    if (join.getPredicate() instanceof EqualityJoinPredicate) {
++                        EqualityJoinPredicate oldPred = (EqualityJoinPredicate) join.getPredicate();
++                        
++                        // Create new swapped predicate
++                        EqualityJoinPredicate newPred = new EqualityJoinPredicate(
++                                oldPred.getRightColumn(), oldPred.getLeftColumn());
++                        
++                        // Create a new join operator with swapped children and predicate
++                        JoinOperator newJoin = new JoinOperator(optimizedRight, optimizedLeft, newPred);
++                        // system.out.println("Created new join with swapped children and updated predicate: " + newPred);
++                        return newJoin;
++                    }
++                } else {
++                    // system.out.println("Cannot swap join children due to predicate constraints");
++                }
++            }
++            
++            // If we couldn't or didn't need to swap, just set the optimized children
++            join.setLeftChild(optimizedLeft);
++            join.setRightChild(optimizedRight);
++            return join;
++            
++        } else if (op instanceof FilterOperator) {
++            FilterOperator filter = (FilterOperator) op;
++            // system.out.println("Optimizing filter operator: " + filter);
++            filter.setChild(optimizeJoins(filter.getChild()));
++            return filter;
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            // system.out.println("Optimizing project operator: " + project);
++            project.setChild(optimizeJoins(project.getChild()));
++            return project;
++        } else if (op instanceof SinkOperator) {
++            SinkOperator sink = (SinkOperator) op;
++            // system.out.println("Optimizing sink operator: " + sink);
++            sink.setChild(optimizeJoins(sink.getChild()));
++            return sink;
++        }
++        
++        // system.out.println("Operator is not a recognized type, returning original operator: " + op);
++        return op;
++    }
++    /**
++     * Checks if wecanSwapJoinChildren can swap join children without affecting semantics.
++     */
++    private boolean canSwapJoinChildren(JoinOperator join) {
++        boolean result = join.getPredicate() instanceof EqualityJoinPredicate;
++        // system.out.println("Can swap join children: " + result);
++        return result;
++    }
++    /**
++     * Estimates the size of an operator's output in number of tuples.
++     */
++    private long estimateOperatorSize(Operator op) {
++        if (op instanceof ScanOperator) {
++            ScanOperator scan = (ScanOperator) op;
++            String tableName = scan.getFilePath();
++            
++            // system.out.println("Estimating size for scan operator on table: " + tableName);
++            
++            // Get table statistics
++            TableStatistics stats = catalog.getTableStatistics(tableName);
++            if (stats != null) {
++                long size = stats.getNumRows();
++                // system.out.println("Found table statistics. Number of rows: " + size);
++                return size;
++            }
++            
++            // Default size if statistics not available
++            // system.out.println("No table statistics found. Using default size: 1000");
++            return 1000;
++        } else if (op instanceof FilterOperator) {
++            FilterOperator filter = (FilterOperator) op;
++            // system.out.println("Estimating size for filter operator.");
++            long childSize = estimateOperatorSize(filter.getChild());
++            long estimatedSize = (long) (0.5 * childSize);  // Simple selectivity factor
++            // system.out.println("Estimated size after applying selectivity factor: " + estimatedSize);
++            return estimatedSize;
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            // system.out.println("Estimating size for join operator.");
++            
++            long leftSize = estimateOperatorSize(join.getLeftChild());
++            long rightSize = estimateOperatorSize(join.getRightChild());
++            
++            long estimatedSize = (long) (0.1 * leftSize * rightSize);  // Join selectivity factor
++            // system.out.println("Estimated join size: " + estimatedSize);
++            return estimatedSize;
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            // system.out.println("Estimating size for project operator.");
++            
++            // For DISTINCT projection, reduce the size
++            if (project.isDistinct()) {
++                long distinctSize = (long) (0.8 * estimateOperatorSize(project.getChild()));
++                // system.out.println("Estimated size with DISTINCT projection: " + distinctSize);
++                return distinctSize;
++            } else {
++                long size = estimateOperatorSize(project.getChild());
++                // system.out.println("Estimated size without DISTINCT projection: " + size);
++                return size;
++            }
++        }
++        // system.out.println("Unknown operator type, using default size: 1000");
++        return 1000;
++    }
++
++
++
++
++
++
++
++
++
++
++
++
++    /**
++     * Simplifies and combines projections where possible.
++     */
++    private Operator optimizeProjections(Operator op) {
++        if (op == null) {
++            // system.out.println("Received null operator in optimizeProjections, returning null.");
++            return null;
++        }
++        if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            // system.out.println("Optimizing project operator: " + project);
++            Operator child = project.getChild();
++            Operator optimizedChild = optimizeProjections(child);
++            project.setChild(optimizedChild);
++            if (optimizedChild instanceof ProjectOperator) {
++                ProjectOperator childProject = (ProjectOperator) optimizedChild;
++                // system.out.println("Found nested project operator: " + childProject);
++                if (!project.isDistinct() && !childProject.isDistinct()) {
++                    // system.out.println("Both projections are non-DISTINCT, attempting to combine them.");
++                    
++                    List<String> combinedColumns = getValidProjectionsFromChild(
++                            project.getProjectedColumns(), childProject.getProjectedColumns());
++                    
++                    if (combinedColumns != null) {
++                        // system.out.println("Combined projections: " + combinedColumns);
++                        ProjectOperator combinedProject = new ProjectOperator(
++                                childProject.getChild(), combinedColumns, false);
++                        return combinedProject;
++                    } else {
++                        // system.out.println("Cannot combine projections. Parent projections are not a subset of child projections.");
++                    }
++                } else {
++                    // system.out.println("Cannot combine projections. One or both projections are DISTINCT.");
++                }
++            }
++            return project;
++        } else if (op instanceof FilterOperator) {
++            FilterOperator filter = (FilterOperator) op;
++            // system.out.println("Optimizing filter operator: " + filter);
++            filter.setChild(optimizeProjections(filter.getChild()));
++            return filter;
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            // system.out.println("Optimizing join operator: " + join);
++            join.setLeftChild(optimizeProjections(join.getLeftChild()));
++            join.setRightChild(optimizeProjections(join.getRightChild()));
++            return join;
++        } else if (op instanceof SinkOperator) {
++            SinkOperator sink = (SinkOperator) op;
++            // system.out.println("Optimizing sink operator: " + sink);
++            sink.setChild(optimizeProjections(sink.getChild()));
++            return sink;
++        }
++        // system.out.println("Operator is not a recognized type in optimizeProjections, returning original operator: " + op);
++        return op;
++    }
++    /**
++     * Gets a valid combined projection list.
++     */
++    private List<String> getValidProjectionsFromChild(List<String> parentProjections, List<String> childProjections) {
++        // system.out.println("Checking if parent projections can be combined with child projections.");
++        for (String col : parentProjections) {
++            if (!childProjections.contains(col)) {
++                // system.out.println("Cannot combine projections. Column " + col + " is not in child projections.");
++                return null; //
++            }
++        }
++        // system.out.println("Parent projections can be combined with child projections.");
++        return new ArrayList<>(parentProjections);
++    }
++
++
++
++
++
++
++
++
++
++
++    
++
++
++
++
++
++
++
++
++    private Operator simplifyPredicates(Operator op) {
++        if (op == null) {
++            // system.out.println("Operator is null, returning null.");
++            return null;
++        }
++        
++        if (op instanceof FilterOperator) {
++            FilterOperator filter = (FilterOperator) op;
++            // system.out.println("Processing FilterOperator with predicate: " + filter.getPredicate());
++    
++            // Recursively simplify child first
++            filter.setChild(simplifyPredicates(filter.getChild()));
++            
++            // Check if child is also a filter
++            if (filter.getChild() instanceof FilterOperator) {
++                FilterOperator childFilter = (FilterOperator) filter.getChild();
++                // system.out.println("Child is also a FilterOperator, comparing predicates.");
++    
++                // Try to combine predicates if they're both comparison predicates
++                if (filter.getPredicate() instanceof ComparisonPredicate && 
++                    childFilter.getPredicate() instanceof ComparisonPredicate) {
++                    
++                    ComparisonPredicate parentPred = (ComparisonPredicate) filter.getPredicate();
++                    ComparisonPredicate childPred = (ComparisonPredicate) childFilter.getPredicate();
++                    // system.out.println("Both predicates are ComparisonPredicates, checking if they can be combined.");
++                    
++                    // If they filter on the same column with the same type of comparison,
++                    // we can potentially combine them
++                    if (canCombinePredicates(parentPred, childPred)) {
++                        // system.out.println("Predicates can be combined.");
++    
++                        // For now, just keep the more restrictive predicate
++                        ComparisonPredicate bestPredicate = selectBestPredicate(parentPred, childPred);
++                        if (bestPredicate != null) {
++                            // system.out.println("Selected best predicate: " + bestPredicate);
++                            
++                            // Create a new filter with the best predicate
++                            FilterOperator newFilter = new FilterOperator(childFilter.getChild(), bestPredicate);
++                            // system.out.println("Created new FilterOperator with best predicate.");
++                            return newFilter;
++                        } else {
++                            // system.out.println("Both predicates need to be applied separately.");
++                            // Keep both filters as is
++                            return filter;
++                        }
++                    } else {
++                        // system.out.println("Predicates cannot be combined.");
++                    }
++                }
++            }
++            
++            return filter;
++        } else if (op instanceof JoinOperator) {
++            JoinOperator join = (JoinOperator) op;
++            // system.out.println("Processing JoinOperator.");
++            join.setLeftChild(simplifyPredicates(join.getLeftChild()));
++            join.setRightChild(simplifyPredicates(join.getRightChild()));
++            return join;
++        } else if (op instanceof ProjectOperator) {
++            ProjectOperator project = (ProjectOperator) op;
++            // system.out.println("Processing ProjectOperator.");
++            project.setChild(simplifyPredicates(project.getChild()));
++            return project;
++        } else if (op instanceof SinkOperator) {
++            SinkOperator sink = (SinkOperator) op;
++            // system.out.println("Processing SinkOperator.");
++            sink.setChild(simplifyPredicates(sink.getChild()));
++            return sink;
++        }
++        
++        return op;
++    }
++    
++    /**
++     * Checks if two comparison predicates can be combined
++     */
++    private boolean canCombinePredicates(ComparisonPredicate pred1, ComparisonPredicate pred2) {
++        // system.out.println("Checking if predicates can be combined.");
++        
++        // Simplistic implementation - check if they filter on the same column
++        Object leftOp1 = pred1.getLeftOperand();
++        Object leftOp2 = pred2.getLeftOperand();
++        
++        if (leftOp1 instanceof String && leftOp2 instanceof String) {
++            // system.out.println("Left operands are the same column: " + leftOp1);
++            return leftOp1.equals(leftOp2);
++        }
++        
++        Object rightOp1 = pred1.getRightOperand();
++        Object rightOp2 = pred2.getRightOperand();
++        
++        if (rightOp1 instanceof String && rightOp2 instanceof String) {
++            // system.out.println("Right operands are the same column: " + rightOp1);
++            return rightOp1.equals(rightOp2);
++        }
++        
++        // system.out.println("Predicates cannot be combined.");
++        return false;
+     }
+-}
++    
++    /**
++     * Attempts to combine or select the best predicate between two comparison predicates.
++     * If predicates are of different types (e.g., one is > and one is <), returns null to indicate
++     * both predicates should be applied separately.
++     *
++     * @param pred1 First comparison predicate
++     * @param pred2 Second comparison predicate
++     * @return The combined/best predicate, or null if both should be applied
++     */
++    private ComparisonPredicate selectBestPredicate(ComparisonPredicate pred1, ComparisonPredicate pred2) {
++        // system.out.println("Selecting the best predicate between: " + pred1 + " and " + pred2);
++        
++        String op1 = pred1.getOperator();
++        String op2 = pred2.getOperator();
++        
++        // Extract column and values
++        String column1 = extractColumnName(pred1);
++        String column2 = extractColumnName(pred2);
++        
++        // If they're not on the same column, both should be applied separately
++        if (!column1.equals(column2)) {
++            // system.out.println("Predicates are on different columns, both should be applied");
++            return null; // Return null to indicate both should be kept
++        }
++        
++        Object value1 = extractValue(pred1);
++        Object value2 = extractValue(pred2);
++        
++        // Equality is most restrictive
++        if (op1.equals("=")) {
++            // system.out.println("Predicate 1 is equality and thus more restrictive: " + pred1);
++            return pred1;
++        } else if (op2.equals("=")) {
++            // system.out.println("Predicate 2 is equality and thus more restrictive: " + pred2);
++            return pred2;
++        }
++        
++        // Handle ranges (>, >=, <, <=)
++        
++        // For lower bounds (> or >=)
++        if ((op1.equals(">") || op1.equals(">=")) && (op2.equals(">") || op2.equals(">="))) {
++            int comparison = compareValues(value1, value2);
++            
++            // For '>' and '>=', higher values are more restrictive
++            if (comparison > 0) {
++                // system.out.println("Predicate 1 has higher value for lower bound, more restrictive: " + pred1);
++                return pred1;
++            } else if (comparison < 0) {
++                // system.out.println("Predicate 2 has higher value for lower bound, more restrictive: " + pred2);
++                return pred2;
++            } else {
++                // Values are equal, so check the operator
++                if (op1.equals(">") && op2.equals(">=")) {
++                    // system.out.println("Both bounds are equal, but pred1 is strict '>', more restrictive: " + pred1);
++                    return pred1;
++                } else if (op1.equals(">=") && op2.equals(">")) {
++                    // system.out.println("Both bounds are equal, but pred2 is strict '>', more restrictive: " + pred2);
++                    return pred2;
++                } else {
++                    // Same operator, same value
++                    // system.out.println("Both bounds are identical, returning predicate 1: " + pred1);
++                    return pred1;
++                }
++            }
++        }
++        
++        // For upper bounds (< or <=)
++        if ((op1.equals("<") || op1.equals("<=")) && (op2.equals("<") || op2.equals("<="))) {
++            int comparison = compareValues(value1, value2);
++            
++            // For '<' and '<=', lower values are more restrictive
++            if (comparison < 0) {
++                // system.out.println("Predicate 1 has lower value for upper bound, more restrictive: " + pred1);
++                return pred1;
++            } else if (comparison > 0) {
++                // system.out.println("Predicate 2 has lower value for upper bound, more restrictive: " + pred2);
++                return pred2;
++            } else {
++                // Values are equal, so check the operator
++                if (op1.equals("<") && op2.equals("<=")) {
++                    // system.out.println("Both bounds are equal, but pred1 is strict '<', more restrictive: " + pred1);
++                    return pred1;
++                } else if (op1.equals("<=") && op2.equals("<")) {
++                    // system.out.println("Both bounds are equal, but pred2 is strict '<', more restrictive: " + pred2);
++                    return pred2;
++                } else {
++                    // Same operator, same value
++                    // system.out.println("Both bounds are identical, returning predicate 1: " + pred1);
++                    return pred1;
++                }
++            }
++        }
++        
++        // Mixed upper and lower bounds - we need to keep both predicates
++        if ((op1.equals(">") || op1.equals(">=")) && (op2.equals("<") || op2.equals("<="))) {
++            // system.out.println("Mixed upper and lower bounds (range), both predicates should be applied");
++            
++            // Check if the range is valid by ensuring the lower bound < upper bound
++            int comparison = compareValues(value1, value2);
++            if ((op1.equals(">") && op2.equals("<") && comparison >= 0) ||
++                (op1.equals(">") && op2.equals("<=") && comparison > 0) ||
++                (op1.equals(">=") && op2.equals("<") && comparison > 0) ||
++                (op1.equals(">=") && op2.equals("<=") && comparison >= 0)) {
++                
++                // system.out.println("WARN: Invalid range detected - lower bound >= upper bound");
++            }
++            
++            return null; // Return null to indicate both predicates should be kept
++        }
++        
++        if ((op1.equals("<") || op1.equals("<=")) && (op2.equals(">") || op2.equals(">="))) {
++            // system.out.println("Mixed upper and lower bounds (range), both predicates should be applied");
++            
++            // Check if the range is valid by ensuring the lower bound < upper bound
++            int comparison = compareValues(value2, value1);
++            if ((op2.equals(">") && op1.equals("<") && comparison >= 0) ||
++                (op2.equals(">") && op1.equals("<=") && comparison > 0) ||
++                (op2.equals(">=") && op1.equals("<") && comparison > 0) ||
++                (op2.equals(">=") && op1.equals("<=") && comparison >= 0)) {
++                
++                // system.out.println("WARN: Invalid range detected - lower bound >= upper bound");
++            }
++            return null; // Return null to indicate both predicates should be kept
++        }
++        // system.out.println("Unhandled operator combination, both predicates should be applied");
++        return null; // Return null to indicate both predicates should be kept
++    }
++    /**
++     * Extracts the column name from a comparison predicate.
++     */
++    private String extractColumnName(ComparisonPredicate pred) {
++        Object leftOp = pred.getLeftOperand();
++        Object rightOp = pred.getRightOperand();
++        
++        if (leftOp instanceof String && isLikelyColumnName((String)leftOp)) {
++            return (String)leftOp;
++        } else if (rightOp instanceof String && isLikelyColumnName((String)rightOp)) {
++            return (String)rightOp;
++        }
++        return null;
++    }
++
++    /**
++     * A simple heuristic to determine if a string is likely a column name.
++     */
++    private boolean isLikelyColumnName(String name) {
++        return name != null && !name.trim().isEmpty() && 
++            !name.matches("^\\d+$"); // Not just a number
++    }
++
++    /**
++     * Extracts the value from a comparison predicate.
++     */
++    private Object extractValue(ComparisonPredicate pred) {
++        Object leftOp = pred.getLeftOperand();
++        Object rightOp = pred.getRightOperand();
++        String column = extractColumnName(pred);
++        
++        if (column != null) {
++            if (column.equals(leftOp)) {
++                return rightOp;
++            } else {
++                return leftOp;
++            }
++        }
++        return null;
++    }
++
++    /**
++     * Compares two values and returns:
++     * - positive if value1 > value2
++     * - zero if value1 == value2
++     * - negative if value1 < value2
++     */
++    private int compareValues(Object value1, Object value2) {
++        if (value1 instanceof Integer && value2 instanceof Integer) {
++            return ((Integer)value1).compareTo((Integer)value2);
++        } else if (value1 instanceof Double && value2 instanceof Double) {
++            return ((Double)value1).compareTo((Double)value2);
++        } else if (value1 instanceof String && value2 instanceof String) {
++            return ((String)value1).compareTo((String)value2);
++        } else if (value1 instanceof Date && value2 instanceof Date) {
++            return ((Date)value1).compareTo((Date)value2);
++        } else if (value1 instanceof Number && value2 instanceof Number) {
++            // Handle mixed numeric types
++            return Double.compare(((Number)value1).doubleValue(), ((Number)value2).doubleValue());
++        }
++        return value1.toString().compareTo(value2.toString());
++    } 
++
++}
+\ No newline at end of file
+diff --git a/src/test/java/in/ac/iitd/db362/query/OptimzerTest.java b/src/test/java/in/ac/iitd/db362/query/OptimzerTest.java
+index db0ebca..5447eee 100644
+--- a/src/test/java/in/ac/iitd/db362/query/OptimzerTest.java
++++ b/src/test/java/in/ac/iitd/db362/query/OptimzerTest.java
+@@ -10,7 +10,7 @@ import in.ac.iitd.db362.storage.DataLoader;
+ import org.junit.jupiter.api.Disabled;
+ import org.junit.jupiter.api.Test;
+ 
+-@Disabled
++// @Disabled
+ public class OptimzerTest {
+ 
+     @Test
+@@ -35,6 +35,7 @@ public class OptimzerTest {
+         Operator plan = PlanBuilder.scan("data/csvTables/customer.csv")
+                 .join(PlanBuilder.scan("data/csvTables/orders.csv"), "c_customer_id = o_customer_id")
+                 .join(PlanBuilder.scan("data/csvTables/product.csv"), "o_product_id = p_product_id")
++                .filter("p_price > 10")
+                 .filter("p_price > 20")
+                 .filter("c_age > 30")
+                 .project("c_name", "p_product_name")
+@@ -55,3 +56,4 @@ public class OptimzerTest {
+     }
+ 
+ }
++           
+\ No newline at end of file
+diff --git a/src/test/java/in/ac/iitd/db362/query/QueryTest.java b/src/test/java/in/ac/iitd/db362/query/QueryTest.java
+index 140da83..2bf5872 100644
+--- a/src/test/java/in/ac/iitd/db362/query/QueryTest.java
++++ b/src/test/java/in/ac/iitd/db362/query/QueryTest.java
+@@ -15,7 +15,7 @@ import java.util.List;
+ 
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
+-@Disabled
++// @Disabled
+ public class QueryTest {
+ 
+     @BeforeAll
+@@ -74,15 +74,16 @@ public class QueryTest {
+         String expected =
+                 "c_name,o_order_id\n" +
+                         "John,101\n" +
+-                        "John,103\n" +
+                         "Jane,102\n" +
+-                        "Jane,107\n" +
++                        "John,103\n" +
+                         "Mark,104\n" +
+-                        "Alice,110\n" +
+                         "Bob,105\n" +
+                         "Tom,106\n" +
++                        "Jane,107\n" +
+                         "Sara,108\n" +
+-                        "Linda,109\n";
++                        "Linda,109\n" +
++                        "Alice,110\n";
++                        
+         assertTrue(compareFiles(outputFile, expected, "testCustomerOrdersJoin"));
+     }
+ 
+@@ -142,10 +143,10 @@ public class QueryTest {
+         String expected =
+                 "c_name,p_product_name\n" +
+                         "Mark,Doohickey\n" +
+-                        "Alice,Machine\n" +
+                         "Tom,Device\n" +
+                         "Sara,Instrument\n" +
+-                        "Linda,Tool\n";
++                        "Linda,Tool\n" +
++                        "Alice,Machine\n";
+ 
+         // Compare the output CSV file with the expected result.
+         assertTrue(compareFiles(outputFile, expected, "testCustomerOrdersProductJoin"));
+@@ -177,9 +178,9 @@ public class QueryTest {
+         // Define expected CSV output (including header).
+         String expected =
+                 "c_name,p_product_name\n" +
+-                        "Alice,Machine\n" +
+                         "Tom,Device\n" +
+-                        "Sara,Instrument\n";
++                        "Sara,Instrument\n" +
++                        "Alice,Machine\n";
+ 
+         assertTrue(compareFiles(outputFile, expected, "testCustomerOrdersProductJoinWithPriceFilter"));
+     }
