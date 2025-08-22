@@ -1,7 +1,6 @@
 Assignment 2: Havannah Game
 
 Disha (2022CS11118)  
-Avilasha Mandal (2022CS11631)
 
 Introduction
 This report details the strategy and implementation of our AI for the Havannah game. We utilize the minimax algorithm enhanced with alpha-beta pruning to optimize decision-making. Additionally, we incorporate specific heuristics to prioritize moves that significantly impact gameplay.
