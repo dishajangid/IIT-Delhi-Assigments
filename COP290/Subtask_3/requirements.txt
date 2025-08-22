@@ -1,0 +1,5 @@
+pyarrow
+pandas
+jugaad_data
+nsepy
+pandas-market-calendars
