@@ -1,0 +1,18 @@
+---
+:id: 212904425
+:submitters:
+- :name: Aditya Goyal
+  :email: ee3221761@ee.iitd.ac.in
+- :name: Sushant Kumar
+  :email: ee1222045@iitd.ac.in
+- :name: Apoorva Jain
+  :email: ee1221657@ee.iitd.ac.in
+- :name: Disha Disha
+  :email: cs1221118@cse.iitd.ac.in
+:created_at: !ruby/object:ActiveSupport::TimeWithZone
+  utc: 2023-11-15 18:03:19.065000000 Z
+  zone: !ruby/object:ActiveSupport::TimeZone
+    name: America/Los_Angeles
+  time: 2023-11-15 10:03:19.065000000 Z
+:status: processed
+:score: 50.0
